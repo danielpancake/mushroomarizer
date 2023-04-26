@@ -1,4 +1,7 @@
 
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Mushroomarizer
@@ -127,7 +130,7 @@ namespace Mushroomarizer
       while (true)
       {
         Console.Write("Enter option: ");
-        string? input = Console.ReadLine();
+        string input = Console.ReadLine();
         if (input == null)
         {
           Console.WriteLine("Invalid option");
