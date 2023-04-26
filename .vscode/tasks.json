@@ -7,7 +7,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/mushroomarizer.csproj",
+        "${workspaceFolder}/src/mushroomarizer.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary"
       ],
@@ -19,7 +19,7 @@
       "type": "process",
       "args": [
         "publish",
-        "${workspaceFolder}/mushroomarizer.csproj",
+        "${workspaceFolder}/src/mushroomarizer.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary"
       ],
@@ -33,7 +33,7 @@
         "watch",
         "run",
         "--project",
-        "${workspaceFolder}/mushroomarizer.csproj"
+        "${workspaceFolder}/src/mushroomarizer.csproj"
       ],
       "problemMatcher": "$msCompile"
     }
