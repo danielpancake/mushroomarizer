@@ -157,12 +157,16 @@ namespace Mushroomarizer
       Console.WriteLine("Mushroomarizing...");
 
       string appPath = Directory.GetCurrentDirectory();
-      string iconPath = appPath + @"\icons\mushroom.ico";
+      
+      // Get all .ico files in icons folder
+      string[] mushrooms = Directory.GetFiles(appPath + @"\icons", "*.ico");
       string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
       List<string> folders = GetDesktopFolders();
       foreach (string folder in folders)
       {
+        // Pick a random mushroom
+        string iconPath = mushrooms[(new Random()).Next(mushrooms.Length)];
         ChangeFolderIcon(Path.Combine(desktopPath, folder), iconPath);
       }
 
