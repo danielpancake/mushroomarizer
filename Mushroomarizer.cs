@@ -64,14 +64,11 @@ namespace Mushroomarizer
       string iconico = folderPath + @"\icon.ico";
       string hidden = folderPath + @"\.hidden";
 
-      NoMoreMushrooms(folderPath, true);
+      NoMoreMushrooms(folderPath, false);
 
       // File attributes for all files
       FileAttributes attrs =
-        FileAttributes.Normal |
-        FileAttributes.Hidden |
-        FileAttributes.System |
-        FileAttributes.ReadOnly;
+        FileAttributes.Normal | FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System;
 
       // Copy icon
       File.Copy(iconPath, iconico);
@@ -80,11 +77,7 @@ namespace Mushroomarizer
       // Create desktop.ini
       string[] desktopiniContents = {
         "[.ShellClassInfo]",
-        "IconResource=icon.ico,0",
-        "[ViewState]",
-        "Mode=",
-        "Vid=",
-        "FolderType=Generic"
+        "IconResource=icon.ico,0"
       };
 
       File.WriteAllLines(desktopini, desktopiniContents);
@@ -107,7 +100,7 @@ namespace Mushroomarizer
       DirectoryInfo desktop = new DirectoryInfo(desktopPath);
       foreach (DirectoryInfo folder in desktop.GetDirectories())
       {
-        folders.Add(folder.Name);
+        folders.Add(folder.FullName);
       }
       return folders;
     }
@@ -160,37 +153,48 @@ namespace Mushroomarizer
       Console.WriteLine("Mushroomarizing...");
 
       string appPath = Directory.GetCurrentDirectory();
-      
+
       // Get all .ico files in icons folder
       string[] mushrooms = Directory.GetFiles(appPath + @"\icons", "*.ico");
-      string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
 
       List<string> folders = GetDesktopFolders();
       foreach (string folder in folders)
       {
+        Console.WriteLine("Mushroomarizing " + folder);
+
         // Pick a random mushroom
         string iconPath = mushrooms[(new Random()).Next(mushrooms.Length)];
-        ChangeFolderIcon(Path.Combine(desktopPath, folder), iconPath);
+
+        ChangeFolderIcon(folder, iconPath);
+        File.SetAttributes(folder, FileAttributes.Normal | FileAttributes.ReadOnly);
+
+        RefreshFolder(folder);
       }
 
-      SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
-      Console.WriteLine("Done!");
+      Console.WriteLine("Done! Please wait a few seconds for the changes to take effect.");
     }
 
     static void Unmushroomarize()
     {
       Console.WriteLine("Unmushroomarizing...");
 
-      string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-
       List<string> folders = GetDesktopFolders();
       foreach (string folder in folders)
       {
-        NoMoreMushrooms(Path.Combine(desktopPath, folder));
+        Console.WriteLine("Unmushroomarizing " + folder);
+
+        NoMoreMushrooms(folder);
+        RefreshFolder(folder);
+
+        File.SetAttributes(folder, FileAttributes.Normal);
       }
 
+      Console.WriteLine("Done! Please wait a few seconds for the changes to take effect.");
+    }
+
+    static void RefreshFolder(string folderPath)
+    {
       SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
-      Console.WriteLine("Done!");
     }
   }
 }
