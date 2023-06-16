@@ -105,6 +105,26 @@ namespace Mushroomarizer
       return folders;
     }
 
+    static List<string> GetDesktopShortcuts()
+    {
+      // Collect all .ink files on desktop
+      List<string> shortcuts = new List<string>();
+
+      string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+      foreach (string file in Directory.GetFiles(desktopPath, "*.lnk"))
+      {
+        shortcuts.Add(file);
+      }
+
+      string publicDesktopPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
+      foreach (string file in Directory.GetFiles(publicDesktopPath, "*.lnk"))
+      {
+        shortcuts.Add(file);
+      }
+
+      return shortcuts;
+    }
+
     static void Main(string[] args)
     {
       // Show user a console menu
