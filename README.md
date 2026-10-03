@@ -6,7 +6,7 @@ The idea came from this image, but I don't know its original source.
 
 ![Desktop full of mushrooms!](images/meme-image.jpg)
 
-![Icons preview](images/icons-preview.jpg)
+![Icons preview](images/icons-preview.webp)
 
 ## Roadmap
 
