@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,110 +6,22 @@ using System.Runtime.InteropServices;
 
 namespace Mushroomarizer {
     class Mushroomarizer {
-        [DllImport("shell32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern void SHChangeNotify(int wEventId, int uFlags, IntPtr dwItem1, IntPtr dwItem2);
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        private static extern void SHChangeNotify(int wEventId, int uFlags, string dwItem1, IntPtr dwItem2);
+
+        const int SHCNE_UPDATEITEM = 0x00002000;
+        const int SHCNE_ASSOCCHANGED = 0x08000000;
+        const int SHCNF_IDLIST = 0x0000;
+        const int SHCNF_PATHW = 0x0005;
 
         static readonly Random random = new Random();
 
-        static readonly string[] hiddenContents = {
-            "desktop.ini",
-            "icon.ico"
-        };
+        static readonly string iconsPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mushroomarizer");
 
-        static bool ForceDeleteFile(string filePath) {
-            try {
-                FileAttributes attrs = File.GetAttributes(filePath) | FileAttributes.Normal;
-                File.SetAttributes(filePath, attrs & ~FileAttributes.ReadOnly);
-                File.Delete(filePath);
-            } catch (Exception e) {
-                Console.WriteLine(e.Message);
-                return false;
-            }
-
-            return true;
-        }
-
-        static string[] MushroomFiles(string folderPath) {
-            return new string[] {
-                folderPath + @"\desktop.ini",
-                folderPath + @"\icon.ico",
-                folderPath + @"\.hidden"
-            };
-        }
-
-        static bool IsMushroomarized(string folderPath) {
-            string hidden = folderPath + @"\.hidden";
-            return File.Exists(hidden) && File.ReadAllLines(hidden).SequenceEqual(hiddenContents);
-        }
-
-        static bool HasForeignIconFiles(string folderPath) {
-            return !IsMushroomarized(folderPath) && MushroomFiles(folderPath).Any(File.Exists);
-        }
-
-        static void NoMoreMushrooms(string folderPath) {
-            // Clearing out icon files
-            foreach (string file in MushroomFiles(folderPath)) {
-                if (File.Exists(file)) {
-                    ForceDeleteFile(file);
-                }
-            }
-        }
-
-        static void ChangeFolderIcon(string folderPath, string iconPath) {
-            string desktopini = folderPath + @"\desktop.ini";
-            string iconico = folderPath + @"\icon.ico";
-            string hidden = folderPath + @"\.hidden";
-
-            NoMoreMushrooms(folderPath);
-
-            // File attributes for all files
-            FileAttributes attrs =
-                FileAttributes.Normal | FileAttributes.ReadOnly | FileAttributes.Hidden | FileAttributes.System;
-
-            // Copy icon
-            File.Copy(iconPath, iconico);
-            File.SetAttributes(iconico, attrs);
-
-            // Create desktop.ini
-            string[] desktopiniContents = {
-                "[.ShellClassInfo]",
-                "IconResource=icon.ico,0"
-            };
-
-            File.WriteAllLines(desktopini, desktopiniContents);
-            File.SetAttributes(desktopini, attrs);
-
-            // Create .hidden
-            File.WriteAllLines(hidden, hiddenContents);
-            File.SetAttributes(hidden, attrs);
-        }
-
-        static List<string> GetDesktopFolders() {
-            string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            DirectoryInfo desktop = new DirectoryInfo(desktopPath);
-
-            List<string> folders = new List<string>();
-            foreach (DirectoryInfo folder in desktop.GetDirectories()) {
-                folders.Add(folder.FullName);
-            }
-            return folders;
-        }
-
-        static List<string> GetDesktopShortcuts() {
-            // Collect all .lnk files on desktop
-            List<string> shortcuts = new List<string>();
-
-            string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-            foreach (string file in Directory.GetFiles(desktopPath, "*.lnk")) {
-                shortcuts.Add(file);
-            }
-
-            string publicDesktopPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
-            foreach (string file in Directory.GetFiles(publicDesktopPath, "*.lnk")) {
-                shortcuts.Add(file);
-            }
-
-            return shortcuts;
+        public static bool IsMushroom(string iconPath) {
+            return Environment.ExpandEnvironmentVariables(iconPath)
+                .StartsWith(iconsPath + @"\", StringComparison.OrdinalIgnoreCase);
         }
 
         static void Main(string[] args) {
@@ -153,37 +64,44 @@ namespace Mushroomarizer {
         }
 
         static void Mushroomarize() {
-            Console.WriteLine("Mushroomarizing...");
+            string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons");
 
-            // Icons are copied next to the executable, which isn't always the working directory
-            string iconsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons");
-
-            // Get all .ico files in icons folder
-            string[] mushrooms = Directory.Exists(iconsPath) ? Directory.GetFiles(iconsPath, "*.ico") : new string[0];
-            if (mushrooms.Length == 0) {
-                Console.WriteLine("No mushrooms found in " + iconsPath);
+            string[] sources = Directory.Exists(sourcePath) ? Directory.GetFiles(sourcePath, "*.ico") : new string[0];
+            if (sources.Length == 0) {
+                Console.WriteLine("No mushrooms found in " + sourcePath);
                 return;
             }
 
-            List<string> folders = GetDesktopFolders();
-            foreach (string folder in folders) {
-                try {
-                    if (HasForeignIconFiles(folder)) {
-                        Console.WriteLine("Skipping " + folder + " (it already has its own icon)");
-                        continue;
-                    }
-
-                    Console.WriteLine("Mushroomarizing " + folder);
-
-                    // Pick a random mushroom
-                    string iconPath = mushrooms[random.Next(mushrooms.Length)];
-
-                    ChangeFolderIcon(folder, iconPath);
-                    File.SetAttributes(folder, File.GetAttributes(folder) | FileAttributes.ReadOnly);
-                } catch (Exception e) {
-                    Console.WriteLine(e.Message);
+            Directory.CreateDirectory(iconsPath);
+            foreach (string source in sources) {
+                string mushroom = Path.Combine(iconsPath, Path.GetFileName(source));
+                if (!File.Exists(mushroom)) {
+                    File.Copy(source, mushroom);
                 }
             }
+            string[] mushrooms = Directory.GetFiles(iconsPath, "*.ico");
+
+            Console.WriteLine("Mushroomarizing...");
+
+            ForEachPath(GetDesktopFolders(), folder => {
+                if (FolderIcons.HasOwnIcon(folder)) {
+                    Console.WriteLine("Skipping " + folder + " (it already has its own icon)");
+                    return;
+                }
+
+                Console.WriteLine("Mushroomarizing " + folder);
+                FolderIcons.Mushroomarize(folder, mushrooms[random.Next(mushrooms.Length)]);
+            });
+
+            ForEachPath(GetDesktopShortcuts(), shortcut => {
+                if (ShortcutIcons.HasOwnIcon(shortcut)) {
+                    Console.WriteLine("Skipping " + shortcut + " (it already has its own icon)");
+                    return;
+                }
+
+                Console.WriteLine("Mushroomarizing " + shortcut);
+                ShortcutIcons.Mushroomarize(shortcut, mushrooms[random.Next(mushrooms.Length)]);
+            });
 
             RefreshIcons();
 
@@ -193,21 +111,28 @@ namespace Mushroomarizer {
         static void Unmushroomarize() {
             Console.WriteLine("Unmushroomarizing...");
 
-            List<string> folders = GetDesktopFolders();
-            foreach (string folder in folders) {
-                try {
-                    // Leave alone folders we haven't touched
-                    if (!IsMushroomarized(folder)) {
-                        continue;
-                    }
-
-                    Console.WriteLine("Unmushroomarizing " + folder);
-
-                    NoMoreMushrooms(folder);
-                    File.SetAttributes(folder, File.GetAttributes(folder) & ~FileAttributes.ReadOnly);
-                } catch (Exception e) {
-                    Console.WriteLine(e.Message);
+            bool foldersRestored = ForEachPath(GetDesktopFolders(), folder => {
+                // Leave alone folders we haven't touched
+                if (!FolderIcons.IsMushroomarized(folder)) {
+                    return;
                 }
+
+                Console.WriteLine("Unmushroomarizing " + folder);
+                FolderIcons.Unmushroomarize(folder);
+            });
+
+            bool shortcutsRestored = ForEachPath(GetDesktopShortcuts(), shortcut => {
+                if (!ShortcutIcons.IsMushroomarized(shortcut)) {
+                    return;
+                }
+
+                Console.WriteLine("Unmushroomarizing " + shortcut);
+                ShortcutIcons.Unmushroomarize(shortcut);
+            });
+
+            // Anything that failed to restore still points to the stored mushrooms
+            if (foldersRestored && shortcutsRestored) {
+                ForEachPath(new[] { iconsPath }.Where(Directory.Exists), path => Directory.Delete(path, true));
             }
 
             RefreshIcons();
@@ -215,8 +140,33 @@ namespace Mushroomarizer {
             Console.WriteLine("Done! Please wait a few seconds for the changes to take effect.");
         }
 
+        static bool ForEachPath(IEnumerable<string> paths, Action<string> action) {
+            bool succeeded = true;
+            foreach (string path in paths) {
+                try {
+                    action(path);
+
+                    // Manually redraw changed shortcut
+                    SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, path, IntPtr.Zero);
+                } catch (Exception e) {
+                    Console.WriteLine("Failed on " + path + ": " + e.Message);
+                    succeeded = false;
+                }
+            }
+            return succeeded;
+        }
+
+        static string[] GetDesktopFolders() {
+            return Directory.GetDirectories(Environment.GetFolderPath(Environment.SpecialFolder.Desktop));
+        }
+
+        static IEnumerable<string> GetDesktopShortcuts() {
+            return new[] { Environment.SpecialFolder.Desktop, Environment.SpecialFolder.CommonDesktopDirectory }
+                .SelectMany(desktop => Directory.GetFiles(Environment.GetFolderPath(desktop), "*.lnk"));
+        }
+
         static void RefreshIcons() {
-            SHChangeNotify(0x08000000, 0x0000, IntPtr.Zero, IntPtr.Zero);
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, null, IntPtr.Zero);
         }
     }
 }
