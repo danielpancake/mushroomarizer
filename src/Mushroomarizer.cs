@@ -5,7 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 
 namespace Mushroomarizer {
-    class Mushroomarizer {
+    static class Mushroomarizer {
         [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
         private static extern void SHChangeNotify(int wEventId, int uFlags, string dwItem1, IntPtr dwItem2);
 
@@ -24,52 +24,13 @@ namespace Mushroomarizer {
                 .StartsWith(iconsPath + @"\", StringComparison.OrdinalIgnoreCase);
         }
 
-        static void Main(string[] args) {
-            // Show user a console menu
-            string[] menu = {
-                "Mushroomarizer",
-                "==============",
-                "1. Mushroomarize",
-                "2. Unmushroomarize",
-                "3. Exit",
-                "Made by @danielpancake",
-                ""
-            };
-
-            Console.WriteLine(string.Join("\n", menu));
-
-            while (true) {
-                Console.Write("Enter option: ");
-                string input = Console.ReadLine();
-                if (input == null) {
-                    // End of input, nothing more to read
-                    return;
-                }
-
-                switch (input.Trim()) {
-                    case "1":
-                        Mushroomarize();
-                        break;
-                    case "2":
-                        Unmushroomarize();
-                        break;
-                    case "3":
-                        return;
-                    default:
-                        Console.WriteLine("Invalid option");
-                        break;
-                }
-                Console.WriteLine();
-            }
-        }
-
-        static void Mushroomarize() {
+        // Returns a message for every folder or shortcut that failed
+        public static List<string> Mushroomarize() {
             string sourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons");
 
             string[] sources = Directory.Exists(sourcePath) ? Directory.GetFiles(sourcePath, "*.ico") : new string[0];
             if (sources.Length == 0) {
-                Console.WriteLine("No mushrooms found in " + sourcePath);
-                return;
+                throw new FileNotFoundException("No mushrooms found in " + sourcePath);
             }
 
             Directory.CreateDirectory(iconsPath);
@@ -81,67 +42,48 @@ namespace Mushroomarizer {
             }
             string[] mushrooms = Directory.GetFiles(iconsPath, "*.ico");
 
-            Console.WriteLine("Mushroomarizing...");
-
-            ForEachPath(GetDesktopFolders(), folder => {
-                if (FolderIcons.HasOwnIcon(folder)) {
-                    Console.WriteLine("Skipping " + folder + " (it already has its own icon)");
-                    return;
+            List<string> failures = new List<string>();
+            ForEachPath(failures, GetDesktopFolders(), folder => {
+                if (!FolderIcons.HasOwnIcon(folder)) {
+                    FolderIcons.Mushroomarize(folder, mushrooms[random.Next(mushrooms.Length)]);
                 }
-
-                Console.WriteLine("Mushroomarizing " + folder);
-                FolderIcons.Mushroomarize(folder, mushrooms[random.Next(mushrooms.Length)]);
             });
 
-            ForEachPath(GetDesktopShortcuts(), shortcut => {
-                if (ShortcutIcons.HasOwnIcon(shortcut)) {
-                    Console.WriteLine("Skipping " + shortcut + " (it already has its own icon)");
-                    return;
+            ForEachPath(failures, GetDesktopShortcuts(), shortcut => {
+                if (!ShortcutIcons.HasOwnIcon(shortcut)) {
+                    ShortcutIcons.Mushroomarize(shortcut, mushrooms[random.Next(mushrooms.Length)]);
                 }
-
-                Console.WriteLine("Mushroomarizing " + shortcut);
-                ShortcutIcons.Mushroomarize(shortcut, mushrooms[random.Next(mushrooms.Length)]);
             });
 
             RefreshIcons();
-
-            Console.WriteLine("Done! Please wait a few seconds for the changes to take effect.");
+            return failures;
         }
 
-        static void Unmushroomarize() {
-            Console.WriteLine("Unmushroomarizing...");
-
-            bool foldersRestored = ForEachPath(GetDesktopFolders(), folder => {
-                // Leave alone folders we haven't touched
-                if (!FolderIcons.IsMushroomarized(folder)) {
-                    return;
+        // Returns a message for every folder or shortcut that failed
+        public static List<string> Unmushroomarize() {
+            List<string> failures = new List<string>();
+            ForEachPath(failures, GetDesktopFolders(), folder => {
+                if (FolderIcons.IsMushroomarized(folder)) {
+                    FolderIcons.Unmushroomarize(folder);
                 }
-
-                Console.WriteLine("Unmushroomarizing " + folder);
-                FolderIcons.Unmushroomarize(folder);
             });
 
-            bool shortcutsRestored = ForEachPath(GetDesktopShortcuts(), shortcut => {
-                if (!ShortcutIcons.IsMushroomarized(shortcut)) {
-                    return;
+            ForEachPath(failures, GetDesktopShortcuts(), shortcut => {
+                if (ShortcutIcons.IsMushroomarized(shortcut)) {
+                    ShortcutIcons.Unmushroomarize(shortcut);
                 }
-
-                Console.WriteLine("Unmushroomarizing " + shortcut);
-                ShortcutIcons.Unmushroomarize(shortcut);
             });
 
             // Anything that failed to restore still points to the stored mushrooms
-            if (foldersRestored && shortcutsRestored) {
-                ForEachPath(new[] { iconsPath }.Where(Directory.Exists), path => Directory.Delete(path, true));
+            if (failures.Count == 0) {
+                ForEachPath(failures, new[] { iconsPath }.Where(Directory.Exists), path => Directory.Delete(path, true));
             }
 
             RefreshIcons();
-
-            Console.WriteLine("Done! Please wait a few seconds for the changes to take effect.");
+            return failures;
         }
 
-        static bool ForEachPath(IEnumerable<string> paths, Action<string> action) {
-            bool succeeded = true;
+        static void ForEachPath(List<string> failures, IEnumerable<string> paths, Action<string> action) {
             foreach (string path in paths) {
                 try {
                     action(path);
@@ -149,11 +91,9 @@ namespace Mushroomarizer {
                     // Manually redraw changed shortcut
                     SHChangeNotify(SHCNE_UPDATEITEM, SHCNF_PATHW, path, IntPtr.Zero);
                 } catch (Exception e) {
-                    Console.WriteLine("Failed on " + path + ": " + e.Message);
-                    succeeded = false;
+                    failures.Add("Failed on " + path + ": " + e.Message);
                 }
             }
-            return succeeded;
         }
 
         static string[] GetDesktopFolders() {
